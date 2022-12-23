@@ -1,0 +1,67 @@
+project:                
+  type: website          
+  output-dir: docs        #- NO TOCAR: carpeta donde se redirige el output
+  
+website:
+  title: "Las energías"
+  favicon: my_favicon.png
+  site-url: https://Baillifa10.github.io/trabajo_BigData_equipo/              #- hay que rellenarlos
+  repo-url: https://github.io/Baillifa10/trabajo_BigData_equipo
+  #repo-actions: [edit, issue]
+  search:   
+    location: navbar
+    type: overlay   
+    copy-button: true
+  navbar:
+    logo: "./imagenes/my_favicon.jpg"           #---
+    background: "#497E76"    #- color de la navbar
+    foreground: "#FFFFFF"    #- color navigation elements, text and links that appear in the navbar.
+    left: 
+      - icon: house-door
+        href: index.html
+    right:
+      - text: "Trabajo en equipo"   
+        href: my_trabajo_BigData.qmd   
+      - text: "Slides"
+        href: las_slides_estan.qmd
+      - text: "Blog"              #---
+        href: blog.qmd
+      - icon: github
+        href: https://github.com/Baillifa10
+      - icon: envelope
+        url: "mailto:<baillifa@alumni.uv.es>"            #---
+  page-footer:
+    border: true
+    background: "#497E76"
+    left: "© 2022 Adeline, Lena y Steven"   
+    center: "Hecho con [Quarto](https://quarto.org)"
+    right:
+      - icon: github
+        href: https://github.com/Baillifa10    #----
+      - icon: envelope
+        url: "mailto:baillifa@alumni.uv.es"            #-----
+    
+format:
+  html:
+    theme: flatly           #---
+    highlight-style: arrow   #---
+    css: my_styles.css   
+    page-layout: full
+    toc: true
+    code-copy: true
+    code-overflow: scroll    #- {wrap, scroll}
+    
+
+# Enable CC licence appendix
+license: "CC BY"
+
+lang: es   #- {es, en}
+
+
+# Default execute options
+execute:
+  echo: true
+  message: false
+  warning: false
+  eval: true
+

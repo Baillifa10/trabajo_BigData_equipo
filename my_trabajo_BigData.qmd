@@ -1,0 +1,794 @@
+---
+title: "Las energías en Europa"
+description: |
+  Analizando el consumo, la producción, los precios y los tipos de las energías en Europa para ver la posición de los distinctos países
+author: 
+- name: Adeline Baillifard (baillifa@alumni.uv.es)  
+- name: Lena Baerwinkel (bale@alumni.uv.es)             
+- name: Luis Steven Vega (vevas@alumni.uv.es)             
+date: 2022-12-23                          
+categories: [trabajo BigData]
+title-block-banner: true #- {true, false, "green","#AA0000"}
+title-block-banner-color: "036f7b"    #-"#FFFFFF" 
+toc: true
+toc-location: left
+toc-depth: 3
+smooth-scroll: true
+format: 
+  html:
+    link-external-newwindow: true
+    #css: ./assets/my_css_file.css   #- CUIDADO!!!!
+code-tools: true
+code-link: true
+---
+
+
+
+# Introducción 
+
+El trabajo que vamos a realizar se divide en 5 partes:
+
+- En primer lugar, analizaremos el consumo general de los países y la evolución del consumo.
+- En segundo lugar, veremos los tipos de energías utilizadas (energías renovables y fósiles) y en qué proporción.
+- Luego, analizaremos la producción de energías para cada tipo de energías y el balance entre consumo y producción.
+- A continuación, estudiaremos los precios de algunas energías (electricidad y gas) y la relación entre precios y inflación.
+- Por último, haremos una pequeña conclusión.
+ 
+# Datos del trabajo
+
+::: {.panel-tabset}
+
+## Datos usados
+
+Los datos utilizados vienen todos de Eurostat. 
+
+## Códigos
+
+```{r}
+#| code-fold: true
+
+#Paquetes utilizados en el trabajo 
+library(readr)
+library(tidyverse)
+library(plotly)
+library(knitr)
+library(eurostat)
+library(gganimate)
+
+
+#Datos utilizados
+table_data <- "nrg_bal_s"
+table_datar <- "nrg_ind_ren"
+table_fosil <- "nrg_ind_ffgae"
+table_combustible <- "nrg_inf_epc"
+table_rw <- "nrg_inf_epc"
+table_renewables<- "nrg_inf_epcrw"
+table_consumo <- "nrg_cb_sff"
+table_consumoR <- "nrg_cb_rw"
+table_gas <- "nrg_pc_202"  #DESDE 2007 (GAS)
+table_gas07 <- "nrg_pc_202_h"  #ANTES DEL 2007 (GAS)
+table_elec <- "nrg_pc_204"  #DESDE 2007 (ELECTRICIDAD)
+table_elec07 <- "nrg_pc_204_h"  #ANTES DE 2007 (ELECTRICIDAD)
+table_consumoG <- "nrg_cb_gas"  #GAS
+table_consumoE <- "nrg_cb_e"  #ELECTRICIDAD
+table_inflation <- "tec00118"  #INFLACION de 2010 a 2021
+
+#transformamos los datos
+label_eurostat_tables(table_data)
+data <- get_eurostat(table_data, time_format = 'raw', keepFlags = TRUE)
+df_namesD <- names(data)
+data <- label_eurostat(data, code = df_namesD, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(data)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(data)
+data[data == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+data <- data %>% 
+  filter(nrg_bal == "Total energy supply",
+         geo %in% paises,
+         siec == "Total",
+         unit == "Thousand tonnes of oil equivalent") %>%
+  select(time, geo, values) %>%
+  mutate(time = as.numeric(time))
+colnames(data) <- c("year", "country", "value")
+
+
+label_eurostat_tables(table_datar)
+datar<- get_eurostat(table_datar, time_format = 'raw', keepFlags = TRUE)
+df_namesDr <- names(datar)
+datar <- label_eurostat(datar, code = df_namesDr, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(datar)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(datar)
+datar[datar == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+datar <- datar %>% 
+  filter(nrg_bal == "Renewable energy sources") %>%
+  filter(geo %in% paises) %>% 
+  select(time, geo, values) %>% 
+  mutate(time =  as.numeric(time))
+colnames(datar) <- c("year", "country", "value")
+
+
+label_eurostat_tables(table_fosil)
+dfFosil <- get_eurostat(table_fosil, time_format = 'raw', keepFlags = TRUE)
+df_namesFosil <- names(dfFosil)
+dfFosil <- label_eurostat(dfFosil, code = df_namesFosil, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(dfFosil)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(dfFosil)
+dfFosil[dfFosil == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+str(dfFosil) #Esta como numero VALUES
+dfFosil <- dfFosil %>% mutate(time =  as.numeric(time))
+dfFosil <- dfFosil %>% 
+  select(time, geo, values) %>% 
+  filter(geo %in% paises)
+#paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+
+
+label_eurostat_tables(table_combustible)
+df <- get_eurostat(table_combustible, time_format = 'raw', keepFlags = TRUE)
+df_names <- names(df)
+df <- label_eurostat(df, code = df_names, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(df)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(df)
+rm(df_dicc, df_uniques)
+df[df == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+dfEngFos <- df %>% filter (siec == c("Nuclear fuels and other fuels n.e.c.", "Combustible fuels"),
+                   geo %in% paises) %>%
+  select(time,geo,unit, values, operator) %>%
+  mutate(time = as.numeric(time)) %>%
+  group_by(geo, time) %>%
+  summarise(Total = sum(values)) %>% 
+  filter(Total != 0)
+colnames(dfEngFos) <- c("pais", "anyo", "fosiles")
+
+
+
+label_eurostat_tables(table_rw)
+df_rw<- get_eurostat(table_rw, time_format = 'raw', keepFlags = TRUE)
+df_namesrw <- names(df_rw)
+df_rw <- label_eurostat(df_rw, code = df_namesrw, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(df_rw)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(df_rw)
+rm(df_dicc, df_uniques)
+df_rw[df_rw == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+eng_rw <- c("Tide, wave, ocean", "Solar photovoltaic",
+            "Solar thermal", "Wind", "Geothermal",
+            "Pumped hydro power", "Mixed hydro power",
+            "Pure hydro power", "Hydro")
+dfEngR <- df_rw %>% filter (siec %in% eng_rw,
+                           geo %in% paises) %>%
+  select(time,geo,unit, values, operator) %>%
+  mutate(time = as.numeric(time)) %>%
+  group_by(geo, time) %>%
+  summarise(Total = sum(values)) %>% 
+  filter(Total != 0)
+colnames(dfEngR) <- c("pais", "anyo", "fosiles")
+
+
+label_eurostat_tables(table_consumo)
+df_consumo<- get_eurostat(table_consumo, time_format = 'raw', keepFlags = TRUE)
+df_namesC <- names(df_consumo)
+df_consumo <- label_eurostat(df_consumo, code = df_namesC, fix_duplicated = TRUE)
+df_diccC <- pjpv.curso.R.2022::pjp_dicc(df_consumo)
+df_uniquesC <- pjpv.curso.R.2022::pjp_valores_unicos(df_consumo)
+rm(df_diccC, df_uniquesC)
+df_consumo[df_consumo == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+df_consumo <- df_consumo %>% select(time, geo, values, siec)
+str(df_consumo)
+df_consumo <- df_consumo %>% mutate(time =  as.numeric(time))
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+df_consumo <- df_consumo %>%
+  filter (geo %in% paises) %>%
+  group_by(geo, time) %>%
+  summarise(Total = sum(values))
+colnames(df_consumo) <- c("pais", "anyo", "consumo total de energias no renovables")
+
+
+
+label_eurostat_tables(table_consumoR)
+df_consumoR <- get_eurostat(table_consumoR, time_format = 'raw', keepFlags = TRUE)
+df_namesCR <- names(df_consumoR)
+df_consumoR <- label_eurostat(df_consumoR, code = df_namesCR, fix_duplicated = TRUE)
+df_diccCR <- pjpv.curso.R.2022::pjp_dicc(df_consumoR)
+df_uniquesCR <- pjpv.curso.R.2022::pjp_valores_unicos(df_consumoR)
+rm(df_diccCR, df_uniquesCR)
+df_consumoR[df_consumoR == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+df_consumoR <- df_consumoR %>% select(time, geo, values, siec)
+str(df_consumoR)
+df_consumoR <- df_consumoR %>% mutate(time =  as.numeric(time))
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+df_consumoR <- df_consumoR %>%
+  filter (geo %in% paises) %>%
+  group_by(geo, time) %>%
+  summarise(Total = sum(values))
+colnames(df_consumoR) <- c("pais", "anyo", "consumo total de energias renovables")
+
+
+
+label_eurostat_tables(table_gas)
+dfGas <- get_eurostat(table_gas, time_format = 'raw', keepFlags = TRUE)
+df_namesGas <- names(dfGas)
+dfGas <- label_eurostat(dfGas, code = df_namesGas, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(dfGas)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(dfGas)
+rm(df_dicc, df_uniques)
+dfGas[dfGas == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+dfGas <- dfGas %>% mutate(time =  as.numeric(time_code))
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+dfGas <- dfGas %>%
+  filter(tax == "Excluding taxes and levies",
+         currency == "Euro",
+         unit == "Gigajoule (gross calorific value - GCV)",
+         geo %in% paises) %>%
+  mutate(fecha = lubridate::yq(time_code)) %>% 
+  mutate(periodo = lubridate::year(fecha)) %>%
+  select(periodo,geo, geo_code,unit, currency, values, consom) %>% 
+  group_by(geo, periodo, geo_code) %>%
+  summarise(Total = sum(values)) %>%
+  filter(periodo > 2007)
+
+
+label_eurostat_tables(table_gas07)
+dfGas07 <- get_eurostat(table_gas07, time_format = 'raw', keepFlags = TRUE)
+df_namesGas07 <- names(dfGas07)
+dfGas07 <- label_eurostat(dfGas07, code = df_namesGas07, fix_duplicated = TRUE)
+df_dicc07 <- pjpv.curso.R.2022::pjp_dicc(dfGas07)
+df_uniques07 <- pjpv.curso.R.2022::pjp_valores_unicos(dfGas07)
+rm(df_dicc07, df_uniques07)
+dfGas07[dfGas07 == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+dfGas07 <- dfGas07 %>% mutate(time =  as.numeric(time_code))
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+dfGas07 <- dfGas07 %>%
+  filter(tax == "Excluding taxes and levies",
+         currency == "Euro",
+         unit == "Gigajoule (gross calorific value - GCV)",
+         geo %in% paises) %>%
+  mutate(fecha = lubridate::yq(time_code)) %>% 
+  mutate(periodo = lubridate::year(fecha))  %>%
+  select(periodo,geo, geo_code,unit, currency, values, consom) %>% 
+  group_by(geo, periodo, geo_code) %>%
+  summarise(Total = sum(values)) %>%
+  filter(periodo < 2008)
+ 
+
+
+
+label_eurostat_tables(table_elec)
+dfElec <- get_eurostat(table_elec, time_format = 'raw', keepFlags = TRUE)
+df_namesElec <- names(dfElec)
+dfElec <- label_eurostat(dfElec, code = df_namesElec, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(dfElec)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(dfElec)
+rm(df_dicc, df_uniques)
+dfElec[dfElec == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+dfElec <- dfElec %>% mutate(time =  as.numeric(time_code))
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+dfElec <- dfElec %>%
+  filter(tax == "Excluding taxes and levies",
+         currency == "Euro",
+         consom != "Consumption of kWh - all bands",
+         geo %in% paises) %>%
+  mutate(fecha = lubridate::yq(time_code)) %>% 
+  mutate(periodo = lubridate::year(fecha)) %>%
+  select(periodo, geo, geo_code, unit, currency, values, consom) %>% 
+  group_by(geo, periodo, geo_code) %>%
+  summarise(Total = sum(values)) %>%
+  filter(periodo > 2007)
+
+
+
+label_eurostat_tables(table_elec07)
+dfElec07 <- get_eurostat(table_elec07, time_format = 'raw', keepFlags = TRUE)
+df_namesElec07 <- names(dfElec07)
+dfElec07 <- label_eurostat(dfElec07, code = df_namesElec07, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(dfElec07)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(dfElec07)
+rm(df_dicc, df_uniques)
+dfElec07[dfElec07 == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+dfElec07 <- dfElec07 %>% mutate(time =  as.numeric(time_code))
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+dfElec07 <- dfElec07 %>%
+  filter(tax == "Excluding taxes and levies",
+         currency == "Euro",
+         consom != "Consumption of kWh - all bands",
+         geo %in% paises) %>%
+  mutate(fecha = lubridate::yq(time_code)) %>% 
+  mutate(periodo = lubridate::year(fecha)) %>%
+  select(periodo, geo, geo_code, unit, currency, values, consom) %>% 
+  group_by(geo, periodo, geo_code) %>%
+  summarise(Total = sum(values)) %>%
+  filter(periodo < 2008)
+
+
+
+label_eurostat_tables(table_consumoG)
+df_consumoG <- get_eurostat(table_consumoG, time_format = 'raw', keepFlags = TRUE)
+df_namesG <- names(df_consumoG)
+df_consumoG <- label_eurostat(df_consumoG, code = df_namesG, fix_duplicated = TRUE)
+df_diccCG <- pjpv.curso.R.2022::pjp_dicc(df_consumoG)
+df_uniquesCG <- pjpv.curso.R.2022::pjp_valores_unicos(df_consumoG)
+rm(df_diccCG, df_uniquesCG)
+df_consumoG[df_consumoG == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+str(df_consumoG)
+df_consumoG <- df_consumoG %>% mutate(time =  as.numeric(time))
+df_consumoG <- df_consumoG %>% 
+  filter(unit == "Terajoule (gross calorific value - GCV)") %>%
+  select(time, geo, values, siec, unit) %>%
+  filter(geo %in% paises)  %>%
+  group_by(geo, time) %>%
+  summarise(Total = sum(values))
+
+
+
+label_eurostat_tables(table_consumoE)
+df_consumoE <- get_eurostat(table_consumoE, time_format = 'raw', keepFlags = TRUE)
+df_namesE <- names(df_consumoE)
+df_consumoE <- label_eurostat(df_consumoE, code = df_namesE, fix_duplicated = TRUE)
+df_diccCE <- pjpv.curso.R.2022::pjp_dicc(df_consumoE)
+df_uniquesCE <- pjpv.curso.R.2022::pjp_valores_unicos(df_consumoE)
+rm(df_diccCE, df_uniquesCE)
+df_consumoE[df_consumoE == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+str(df_consumoE)
+df_consumoE <- df_consumoE %>% mutate(time =  as.numeric(time))
+df_consumoE <- df_consumoE %>%
+  select(time, geo, values, siec, unit) %>%
+  filter(geo %in% paises)  %>%
+  group_by(geo, time) %>%
+  summarise(Total = sum(values))
+
+
+
+label_eurostat_tables(table_inflation)
+df_inflation <- get_eurostat(table_inflation, time_format = 'raw', keepFlags = TRUE)
+df_namesInf <- names(df_inflation)
+df_inflation <- label_eurostat(df_inflation, code = df_namesInf, fix_duplicated = TRUE)
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(df_inflation)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(df_inflation)
+rm(df_dicc, df_uniques)
+df_inflation[df_inflation == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
+paises <- c("Spain","France", "Sweden", "Denmark", "Italy", "Norway", "Germany")
+str(df_inflation)
+df_inflation <- df_inflation %>% mutate(time =  as.numeric(time))
+df_inflation0 <- df_inflation %>%
+  select(time, geo, geo_code, values) %>%
+  filter(geo %in% paises)
+colnames(df_inflation0) <- c("Anyo", "Pais", "geo_code","Inflacion")
+```
+:::
+
+# El consumo de las energías
+
+Con el calentamiento global y la guerra de Ucrania, el consumo de energía se ha convertido últimamente en un tema muy controvertido. Las reservas de carbón, gas, uranio y hulla disminuyen cada año. Los Estados intentan cada vez más reducir su consumo y utilizar energías renovables.
+
+Se han celebrado varios acuerdos para reducir el consumo de energía en Europa, especialmente en junio de 2022, los Estados miembros acordaron reducir el consumo de energía en la UE en un 36% para 2030.
+
+¿Pero qué ha ocurrido en los últimos años? vamos a echar un vistazo a la evolución del uso de energías en los principales países de Europa.
+
+```{r , message=FALSE}
+#| code-fold: true
+options(scipen = 999)
+p1 <- data %>% ggplot(aes(x = year, y = value, color = country))+ 
+   geom_point()+ geom_line(aes(color = country))+theme_minimal()+
+  geom_smooth(color = "purple")+
+  labs(title = "Gráfico 1: Evolución del uso de energías en países elegidos",
+      subtitle = "(total energy supply)",
+      caption = "Datos provenientes de Eurostat",
+      x = "Años",
+      y = "Tonelada equivalente de petróleo",
+      color = "Pais") 
+
+
+
+plotly::ggplotly(p1)
+
+```
+
+Este gráfico muestra la evolución del consumo de energía de 1990 a 2020. El consumo de energía se mide en tonelada equivalente de petrolóleo (tep). Su valor equivale a la energía que rinde una tonelada de petróleo, la cual, como varía según la composición química de este, se ha tomado un valor convencional de: 41 868 000 000 J (julios) = 11 630 kWh (kilovatios-hora).
+<br>
+
+Como vemos, el consumo de los países se ha mantenido relativamente estable en los últimos 30 años. El consumo mundial aumentó ligeramente en los años 2005, pero desde entonces ha descendido a su nivel original de 1990. Sólo Alemania ha reducido enormemente su consumo (casi 75.000 tep menos). España, en cambio, ha aumentado su consumo.
+<br>
+<br>
+Podemos ver también el consumo de otra manera, para cada año.
+
+```{r}
+#| code-fold: true
+p2 <- data %>% filter(year >=2010) %>% ggplot(aes(x = reorder(country, -value), y=value, fill=country))+
+  geom_bar(stat="identity")+
+  theme_minimal() +
+  facet_wrap(~year)+
+  labs(title = "Gráfico 2: Comparación del consumo de los países para cada año",
+       subtitle = "(2010-2020)",
+       caption = "Datos provenientes de Eurostat") +
+  xlab(NULL) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+plotly::ggplotly(p2)
+```
+
+Si cogemos ahora todos los países de Europa, podemos ver cuáles son les países que más consumen.
+
+```{r}
+#| code-fold: true
+
+data1<- get_eurostat(table_data, time_format = 'raw', keepFlags = TRUE)
+df_names1 <- names(data1)
+data1 <- label_eurostat(data1, code = df_names1, fix_duplicated = TRUE)
+
+no_paises <- c("European Union - 27 countries (from 2020)", "Euro area - 19 countries (2015-2022)	")
+
+data12 <- data1 %>% 
+  filter(nrg_bal == "Total energy supply",
+         siec == "Total",
+         unit == "Thousand tonnes of oil equivalent", 
+         geo != no_paises) %>%
+  select(time, geo, values) %>%
+  mutate(time = as.numeric(time))
+
+colnames(data12) <- c("year", "country", "value")
+
+e3 <- data12 %>% filter(year == 2020)%>% slice_max(value, n=10)
+
+e3 %>%
+  knitr::kable() %>%
+  kableExtra::kable_styling(font_size = 13) %>%
+  kableExtra::scroll_box(width = "%", height = "600%") %>%
+    kableExtra::kable_styling(fixed_thead = list(enabled = T, 
+                                               background = "#036f7b"))
+
+```
+
+Como hemos visto antes, Alemania y Francia están en cabeza, pero en 3ª posición encontramos a Turquía. Es obvio que esto está relacionado con el número de habitantes, ya que Alemania, Turquía y Francia son los países más poblados de Europa
+
+
+# El tipo de energías
+
+Como ya se ha dicho, el calentamiento global plantea muchos problemas y es absolutamente necesario que los países utilicen más energías renovables para reducir las emisiones de carbono.
+
+## Energías renovables
+
+Por eso, nos fijamos en el porcentaje de energía renovable que utiliza cada país.
+
+```{r}
+#| code-fold: true
+
+p4 <- datar %>% ggplot(aes(x=year, y=value, color=country))+
+  geom_line()+theme_minimal()+
+  labs(title = "Gráfico 3: Evolución del uso de energás renovables",
+       subtitle = "(en porcentages)",
+       caption = "Datos provenientes de Eurostat",
+       x = "Años",
+       y = "Porcentage de energías renovables",
+       color = "Paises")
+
+
+plotly::ggplotly(p4)
+
+```
+Vemos que globalmente todos los países han mejorado su consumo de energías renovables.
+Los países del norte (Dinamarca, Noruega, Suecia) producen más que los del sur (Italia, España, Francia)
+
+## Energías fósiles
+
+```{r}
+#| code-fold: true
+p5 <- dfFosil %>% ggplot(aes(x= time, y= values, color= geo)) +
+  geom_line() + theme_minimal() + 
+  labs(title = "Gráfico 4: Evolución del uso de energias fosiles",
+       subtitle = "(en porcentajes)",
+       caption = "Datos provenientes de Eurostat",
+       x = "Year",
+       y = "Porcentage de energías no renovables",
+       color = "Paises")
+
+plotly::ggplotly(p5) 
+
+```
+
+En lo que respecta a los combustibles fósiles, no hay diferencia entre el norte y el sur. 
+
+Además, todos los países han reducido su consumo de combustibles fósiles, especialmente Dinamarca, que lo ha hecho en más de un 30%.
+
+## Comparación energías renovables y fosiles
+
+```{r}
+#| code-fold: true
+df_inner <- inner_join(datar, dfFosil,by = c("year" = "time", "country" = "geo"))
+
+colnames(df_inner) <- c("anyo", "pais", "renovables", "fosiles")
+
+p6 <- df_inner %>% ggplot( aes(x = anyo)) +
+  geom_line(aes(y = renovables), color = "green") +
+  geom_line(aes(y = fosiles), color = "grey") + 
+  theme_minimal() + 
+  facet_grid(vars(pais)) + 
+  labs(title = "Gráfico 5: Comparativa entre energias renovables y fosiles",
+       subtitle = "(en porcentajes)",
+       caption = "Datos provenientes de Eurostat",
+       x = "Year",
+       y = "Porcentaje")
+
+plotly::ggplotly(p6)
+```
+
+En este gráfico podemos ver como las direcciones de la UE han tenido su efecto desde 2005. Aunque actualmente solo consumen más energías renovables Suecia y Noruega. Por otra parte, Dinamarca, España, Italia y Francia han retraído el porcentaje de consumo de las no-renovables a favor de las que sí lo son, sobre todo en las dos primeras. Por otra parte, Alemania, pese a llevar una gran transición energética, sigue manteniendo sus niveles de consumo de las fósiles, y con un ligero aumento de las renovables.
+
+
+# La producción de las energías
+
+Para la producción, se diferenciarán entre dos tipos: las fósiles y las renovables. Esto se debe a que Europa, y el mundo entero, se encuentran en una etapa de transición hacia energías verdes, por lo que resultará interesante ver cómo evolucionan los países ante las peticiones desde la UE para lograr el objetivo.
+
+## Energías no renovables
+
+```{r, message=FALSE}
+#| code-fold: true
+p7 <- dfEngFos  %>%
+  ggplot(aes(x = anyo, y = fosiles, colour = pais)) +
+  geom_line() + theme_minimal() +
+  transition_reveal(anyo) +
+  labs(title = "Gráfico 6: Producción de energias no renovables",
+       subtitle = "(en MWh)",
+       caption = "Datos provenientes de Eurostat",
+       x = "Year",
+       y = "Produccion de energías no renovables",
+       color = "Pais")
+
+p7
+```
+
+or lo que respecta a las energías no renovables, y en relación al anterior, podemos ver que la producción por lo general no ha caído, llegando en ciertos puntos a ser más alta. Cabe destacar algo de este gráfico, y es que teniendo a Alemania como la líder, muy por encima de todas, cuando esta cae, las otras aumentan, es decir, hay compensaciones.
+
+## Energías renovables
+
+```{r, message=FALSE}
+#| code-fold: true
+p8 <- dfEngR  %>%
+  ggplot(aes(x = anyo, y = fosiles, colour = pais)) +
+  geom_line() + theme_minimal() + 
+  labs(title = "Gráfico 7: Producción de energias renovables",
+       caption = "Datos provenientes de Eurostat",
+       x = "Year",
+       y = "Produccion de energías renovables",
+       color = "Pais")
+
+p8 + transition_reveal(anyo)
+```
+
+
+De este gráfico destacamos la misma tendencia por parte de todos los países. A partir del periodo 2000-2005 inician una etapa de crecimiento de este tipo de energías. En este caso, vuelve a ser Alemania la que lidera el proceso de transición energética.
+
+## Balance consumo/producción
+
+### Energías no renovables
+
+```{r}
+#| code-fold: true
+df_PyCengF <- inner_join(dfEngFos, df_consumo,by = c("pais" = "pais", "anyo" = "anyo"))
+
+colnames(df_PyCengF) <- c("pais", "anyo", "produccionEF", "consumoEF")
+
+factor <- 60
+
+p9 <- df_PyCengF %>% 
+  ggplot(aes(x=anyo, y = produccionEF)) + 
+  geom_bar(stat = "identity", fill = "skyblue") + 
+  geom_line(aes(y = consumoEF/factor)) + 
+  scale_y_continuous(sec.axis = sec_axis(trans = ~.*factor,
+                                         name = "Consumo")) + 
+  facet_wrap(vars(pais)) +
+  theme_minimal() + 
+  labs(title = "Gráfico 8: Balance consumo/produccion de energias fosiles",
+       caption = "Datos provenientes de Eurostat",
+       x = "Año",
+       y = "Produccion (MW)")
+
+
+plotly::ggplotly(p9) 
+```
+
+
+Analizando los datos de consumo y producción, podemos ver dos escenarios completamente diferentes según el tipo de energía. Pero antes de comparar, cabe aclarar que el gráfico de barras nos muestra la producción, mientras que la línea marca el consumo.
+
+En cuanto a las energías fósiles, primero dejamos fuera a Noruega y Dinamarca, que se distancian por mucho de los niveles de los referentes europeos, y en un poco menos, algo parecido ocurre con Suecia.
+
+
+Dicho esto, podemos juntar a Alemania y Francia, que se complementan muy bien en cuanto a producción y consumo, sobre todo desde el siglo XXI, ya que cuando uno aumentaba el otro descendía, esto se puede entender muy bien debido a su proximidad geográfica, por lo que se entiende el intercambio. Pero en cuanto al consumo, se observa como la caída de Alemania es mucho más significativa, aunque esto se entiende a su gran transición energética, lo que la coloca a día de hoy como el mayor referente.
+
+En otro grupo tendríamos a Italia y España, que han tenido etapas de grandes aumentos en cuanto a la producción, sobre todo en los periodos 2000-2005 y 2008-2013. Pero estos dos, al igual que Francia, han tenido una pequeña tendencia descendente en cuanto al consumo.
+
+### Energías renovables
+
+```{r}
+#| code-fold: true
+df_PyCengR <- inner_join(dfEngR, df_consumoR,by = c("pais" = "pais", "anyo" = "anyo"))
+
+colnames(df_PyCengR) <- c("pais", "anyo", "produccionER", "consumoER")
+
+factor <- 60
+
+p10 <- df_PyCengR %>% 
+  ggplot(aes(x=anyo, y = produccionER)) + 
+  geom_bar(stat = "identity", fill = "skyblue") + 
+  geom_line(aes(y = consumoER/factor)) + 
+  scale_y_continuous(sec.axis = sec_axis(trans = ~.*factor,
+                                         name = "Consumo")) + 
+  facet_wrap(vars(pais)) +
+  theme_light() + 
+  labs(title = "Gráfico 9: Balance consumo/produccion de energias renovables",
+       caption = "Datos provenientes de Eurostat",
+       x = "Año",
+       y = "Produccion (MW)")
+
+
+plotly::ggplotly(p10)
+```
+
+El vínculo es mucho más evidente en el caso de las energías renovables. Parece que los países consumen en proporción a lo que producen. Suecia y Dinamarca parecen consumir todo lo que producen.
+
+Caso contrario ocurre en cuanto a las renovables, y es que la tendencia en la mayoría de países es la misma, pero en esta ocasión, creciente. Y aunque Dinamarca sigue en este caso alejada de los niveles del resto de países, Noruega cambia drásticamente, produciendo inicialmente más que otros países como España o Italia, llegando a igualar los niveles de Francia. La tendencia del consumo se mantiene estable por lo general, pero Italia y Alemania, bastante más Alemania, han crecido mucho en cuanto a consumo y producción.
+
+# Los precios de las energías
+
+Para ponernos en contexto, al inicio de la década de los 90, la mayoría de los mercados energéticos de los países miembros de la UE se encontraban en monopolios. Para frenar esto, tanto desde las naciones como desde la UE, se decidió iniciar una etapa de apertura de los mercados del gas y la electricidad. Este primer paquete energético acabaría a más tardar en el año 2000.
+
+Hasta 2003 no llegó el segundo paquete, en el que se ordenaba a los estados miembros a transponer sus directivas antes del 2004, aunque no entraría en su totalidad en vigor hasta 2007. Este paquete permitió la libre elección de consumidores industriales y particulares de sus proveedores. Junto al tercer paquete(2009), el cual modificó y arregló cosas del anterior, fueron los pilares de un mercado interior de energía. Los paquetes más importantes llegaron después.
+
+El cuarto paquete llegó en junio de 2019, con el que con una prevención ante riesgos, se creó la Agencia de la Unión Europea para la Cooperación de los Reguladores de la Energía (ACER), con el que se buscaba la cooperación entre Estados miembro para la preparación de planes de contingencia ante posibles crisis de electricidad. Además se introdujeron nuevas normas aplicables al mercado de la electricidad para las energías renovables y para atraer inversiones, incentivos a los consumidores y subvenciones para ciertas centrales eléctricas.
+
+El último paquete es el de 2021, que busca adaptar objetivos energéticos ante el contexto actual, aunque en un largo plazo, ya que se busca cumplir con ellos para 2030 y 2050.
+
+Tras contextualizar el mercado energético europeo desde 1990, podemos pasar analizar la evolución de los precios.
+
+
+## Gas
+
+En una primera instancia, al final de la década de los 90, se puede ver como Alemania era uno de los países con los precios más altos de gas, ya que en gran parte era importado de Rusia, caso parecido al de Suecia. Mientras tanto, España lo hacía desde Noruega y desde Argelia. Francia mientras, presentaba los precios más bajos.
+
+```{r, echo = FALSE, eval = TRUE, include =  FALSE}
+#| code-fold: true
+df_TotGas <- full_join(dfGas, dfGas07, by = c("geo"="geo","geo_code" = "geo_code", "periodo"="periodo",  "Total" = "Total"))
+
+colnames(df_TotGas) <- c("Pais", "Anyo", "geo_code","Precio")
+
+df_TotGasD <-  df_TotGas %>% group_by(Anyo) %>%  
+  mutate(values.x.q.b = as.factor(ntile(Precio, n = 5))) %>%
+  ungroup()
+
+geometriasG <- get_eurostat_geospatial(resolution = "20", nuts_level = "0")
+plot(geometriasG, max.plot = 1)
+
+mapdataG <- inner_join(df_TotGasD, geometriasG, by = c("geo_code" = "id"))
+
+mapdata_siG <- mapdataG %>%  filter(Anyo %in% c(2020, 2014, 2007, 1998))
+```
+
+```{r, message=FALSE}
+#| code-fold: true
+p11 <- ggplot(mapdata_siG) +
+  geom_sf(aes(fill = values.x.q.b,  geometry = geometry), color = "black", size = .1) +
+  scale_fill_brewer(palette = "Oranges") + 
+  facet_wrap(vars(Anyo)) +
+  labs(title = "Grafico 10: Evolucion del precio del gas",
+       fill = "Precios",
+       caption = "(C) EuroGeographics for the administrative boundaries") + theme_light() +
+  coord_sf(xlim = c(-12,30), ylim = c(35,70)) + theme(legend.text = element_text(family = "mono"),
+                                                      legend.title = element_text(face = "bold"),
+                                                      legend.background = element_rect(linetype = "solid"),
+                                                      legend.position = "bottom", legend.direction = "horizontal") +labs(subtitle = "(Paises utilizados a lo largo del analisis)")
+
+p11
+```
+
+Tras los primeros paquetes energéticos, se puede denotar como existe una convergencia entre los precios, debido a que el objetivo europeo era conseguir un mercado interior de energía. Posteriormente, vemos a Alemania y Dinamarca como los países con menor precio del gas, y esto se entiende a que estos países han sido capaces de llevar a cabo una transición energética, como antes hacíamos referencia. Caso que no pasa en el resto de países, que siguen siendo dependientes del gas, aunque se puede denotar que están intentando mejorar este aspecto con el mapa de 2020.
+
+### Electricidad
+
+```{r, echo = FALSE, eval = TRUE, include =  FALSE}
+#| code-fold: true
+
+df_TotElec <- full_join(dfElec, dfElec07, by = c("geo"="geo", "geo_code" = "geo_code","periodo"="periodo",  "Total" = "Total"))
+
+colnames(df_TotElec) <- c("Pais", "Anyo", "geo_code","Precio")
+
+df_TotElecD <-  df_TotElec %>% group_by(Anyo) %>%  
+  mutate(values.x.q.b = as.factor(ntile(Precio, n = 5))) %>%
+  ungroup()
+
+geometrias <- get_eurostat_geospatial(resolution = "20", nuts_level = "0")
+plot(geometrias, max.plot = 1)
+
+mapdata <- inner_join(df_TotElecD, geometrias, by = c("geo_code" = "id"))
+
+mapdata_si <- mapdata %>%  filter(Anyo %in% c(2020, 2014, 2007, 1998))
+```
+
+```{r, message=FALSE}
+#| code-fold: true
+p12 <- ggplot(mapdata_si) +
+  geom_sf(aes(fill = values.x.q.b,  geometry = geometry), color = "black", size = .1) +
+  scale_fill_brewer(palette = "Oranges") + 
+  facet_wrap(vars(Anyo)) +
+  labs(title = "Evolucion del precio de la electricidad",
+       fill = "Precios",
+       caption = "(C) EuroGeographics for the administrative boundaries") + theme_light() +
+  coord_sf(xlim = c(-12,30), ylim = c(35,70)) + theme(legend.text = element_text(family = "mono"),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_rect(linetype = "solid"),
+    legend.position = "bottom", legend.direction = "horizontal") +labs(subtitle = "(Paises utilizados a lo largo del analisis)")
+
+p12
+```
+
+
+En este gráfico podemos ver el aumento de los precios de la electricidad en 2003 debido al aumento de las tasas y en 2008 debido a la crisis financiera.
+
+España tenía durante mucho tiempo los precios de la electricidad los más caros. Esto se reguló en 2018 con la entrada de Pedro Sánchez como presidente del Gobierno.
+
+Alemania y Suecia vieron caer los precios en 2007 debido a la normativa establecida por la agencia de la red.
+
+## Correlación precios/inflación
+
+Para ver la correlación entre precio e inflación hemos tomado los datos de inflación de cada país según Eurostat. Esta información sólo está disponible a partir de 2010. Cabe aclarar que estos precios son la suma de las diferentes clasificaciones según la clase de consumo, por lo que los valores serán elevados, pero servirán para ver las relaciones.
+
+```{r}
+#| code-fold: true
+dfG_inf_p <- inner_join(df_inflation0, df_TotGas,by = c("Anyo" = "Anyo", "Pais" = "Pais", "geo_code" = "geo_code"))
+
+dfE_inf_p <- inner_join(df_inflation0, df_TotElec,by = c("Anyo" = "Anyo", "Pais" = "Pais", "geo_code" = "geo_code"))
+
+p13 <- dfG_inf_p %>% ggplot(aes(x = Inflacion, y = Precio, frame = Anyo)) + 
+  geom_point(data = dfG_inf_p, aes(color = Anyo), size = 0.3) +
+  geom_text(aes(label = geo_code), nudge_x = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) 
+
+p14 <- dfE_inf_p %>% ggplot(aes(x = Inflacion, y = Precio, frame = Anyo)) + 
+  geom_point(data = dfE_inf_p, aes(color = Anyo), size = 0.3) +
+  geom_text(aes(label = geo_code), nudge_x = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) 
+```
+
+### Gas
+
+```{r,echo = FALSE, message = FALSE}
+#| code-fold: true
+plotly::ggplotly(p13)
+```
+
+Analizando el gráfico interactivo desde 2010, podemos ver como inicialmente la inflación se encuentra entre el 1 y el 3%, atendiendo el contexto de crisis del 2008 previo, son valores bastante buenos. En este caso la relación es nula, ya que a mayor inflación, apenas aumenta el precio. De hecho, esto cambia tan solo un año después, ya que la inflación aumenta en la mayoría de países un 1%, provocando que la relación sea inversa, a menor inflación, más precio. Esta relación iría perdiendo fuerza hasta 2013, donde se volvería a la situación de 2010, pero esta vez, con una inflación más baja y con altos precios. En 2014 y 2015 se repetirá este ciclo con niveles más bajos sobre la inflación.
+
+Una vez llegados a 2016 el panorama es bien diferente, y es que esta vez la relación será directa, a más inflación, mayores precios sobre el gas. Esta tendencia seguirá hasta 2019, evolucionando a la vez con la inflación. En 2020, se volvería a la situación de 2016. Ahora, en 2021, los precios del gas han caído a causa del aumento de la inflación, pero esta situación cambiará en 2022, pero aun a la espera de datos para poder analizar.
+
+Si algo podemos destacar a lo largo de todo este periodo, es que Suecia siempre tiene los precios más altos de gas, mientras que Dinamarca los más bajos. El resto de países mantienen una tendencia parecida
+
+### Electricidad
+
+Por lo que es la electricidad, los precios inicialmente son un tanto mas dispersos, y es que mientras España, Noruega y Alemania inician con valores alrededor de 1,8€ KW/h, Francia, Dinamarca e Italia no superan el 1,2€. La relación entre inflación y precio es directa en 2010.
+
+```{r,echo = FALSE, message = FALSE}
+#| code-fold: true
+plotly::ggplotly(p14)
+```
+
+Esto contrasta mucho con el año siguiente, y es que con el aumento de la inflación por lo general, afectando sobre todo a Italia y España, dejando a la mayoría de países en precios cercanos al 1,7€/GJ, a excepción de Francia y Dinamarca. De esta tendencia separamos a Noruega y Suecia, que veían reducida su inflación pero manteniendo los precios. En 2021 los efectos se acrecentaron, y con ello, la dispersión de las relaciones.
+
+En 2013 el cambio es radical, todos los países se colocan entre el 0,5% y 2% de inflación, y la relación directa es muy fuerte. Esto cambiará al año siguiente, y es que la caída de la inflación generalizada deja unos precios altos, cambiando el sentido de la relación entre las variables. En 2015 y 2016 se acentuaba aún más esta tendencia, a excepción de Noruega, que se alejaba con un aumento drástico de su inflación. 
+
+En 2017, con los aumentos progresivos de inflación, la relación sería fuerte pero en el otro sentido, con España como el país ligeramente por encima en inflación, pero superando por mucho el precio de la electricidad. En el siguiente periodo, la relación perdería fuerza, pero con España con precios que alcanzaban casi los 2 puntos por encima del resto. Esto acabaría en 2019, ya que los países entrarían en valores parecidos de inflación y precios.
+
+En el inicio de esta década, todos los países reducirán sus niveles de inflación pero manteniendo los precios, a excepción de Suecia, Dinamarca y Noruega que también redujeron precios. Tras la época COVID, los niveles de inflación han aumentado a valores por encima del 2%, y con ello, los precios de la electricidad.
+
+# Conclusión
+
+En conclusión, se pueden hacer varias observaciones:
+
+- En primer lugar, aunque el consumo global de energía se ha mantenido relativamente estable durante los años, el consumo y la producción de energías renovables han aumentado considerablemente en los últimos años. Además, el consumo de combustibles fósiles ha disminuido ligeramente. Esto es muy positivo para el futuro, pero aún hay que hacer esfuerzos, sobre todo en la producción de combustibles fósiles, que sigue siendo importante.
+
+- No observamos una relación entre el consumo y la producción de combustibles fósiles. Esto se debe a que la producción es muy grande, por lo que hay muchas importaciones y exportaciones.
+Sin embargo, esto es muy diferente en el caso de las energías renovables. Los países suelen consumir su propia producción porque es baja. Así,existe un vínculo más visible entre el consumo y la producción de energías renovables.
+
+- En cuanto a la relación precio/inflación, la relación parece bastante clara para la mayoría de países. Y es que cuando aumenta la inflación, aumentan los precios, ya sean de gas o de electricidad, y durante uno o dos años, esto se ajustan los precios. Caso contrario si cae la inflación.
