@@ -121,7 +121,6 @@ dfFosil <- label_eurostat(dfFosil, code = df_namesFosil, fix_duplicated = TRUE)
 df_dicc <- pjpv.curso.R.2022::pjp_dicc(dfFosil)
 df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(dfFosil)
 dfFosil[dfFosil == "Germany (until 1990 former territory of the FRG)"] <- "Germany"
-str(dfFosil) #Esta como numero VALUES
 dfFosil <- dfFosil %>% mutate(time =  as.numeric(time))
 dfFosil <- dfFosil %>% 
   select(time, geo, values) %>% 
